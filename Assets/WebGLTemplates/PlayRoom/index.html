@@ -15,11 +15,11 @@
   <body>
     <div class="webgl-content">
       <div id="gameContainer" style="width: 960px; height: 600px"></div>
-      <div class="footer">
+      <!-- <div class="footer">
         <div class="webgl-logo"></div>
         <div class="fullscreen" onclick="gameInstance.SetFullscreen(1)"></div>
         <div class="title">PlaySpace</div>
-      </div>
+      </div> -->
     </div>
     <script>
       var container;
@@ -109,13 +109,13 @@
         container.appendChild( info );
 
         scene = new THREE.Scene();
-        scene.background = new THREE.Color( 0x505050 );
+        scene.background = new THREE.Color( 0x00283D );
 
         camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 10 );
 
         room = new THREE.LineSegments(
           new THREE.BoxLineGeometry( 6, 6, 6, 10, 10, 10 ),
-          new THREE.LineBasicMaterial( { color: 0x808080 } )
+          new THREE.LineBasicMaterial( { color: 0x00A6FF } )
         );
         room.geometry.translate( 0, 3, 0 );
         scene.add( room );
@@ -128,7 +128,7 @@
 
         for ( var i = 0; i < 200; i ++ ) {
 
-          var object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) );
+          var object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: 0x9D004D } ) );
 
           object.position.x = Math.random() * 4 - 2;
           object.position.y = Math.random() * 4;
