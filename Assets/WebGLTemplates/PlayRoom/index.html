@@ -6,11 +6,11 @@
     <title>Unity WebGL Player | PlaySpace</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
+    <link rel="stylesheet" type="text/css" href="styles/style.css">
     <script src="Build/UnityLoader.js"></script>
-
-    <script src="three.min.js"></script>
-    <script src="BoxLineGeometry.js"></script>
-    <script src="WebVR.js"></script>
+    <script src="vendor/three.min.js"></script>
+    <script src="vendor/BoxLineGeometry.js"></script>
+    <script src="vendor/WebVR.js"></script>
   </head>
   <body>
     <div class="webgl-content">
@@ -22,290 +22,304 @@
       </div>
     </div>
     <script>
-    var container;
-			var camera, scene, renderer;
-			var controller1, controller2;
+      var container;
+      var camera, scene, renderer;
+      var controller1, controller2;
 
-			var room;
+      var room;
 
-			var count = 0;
-			var radius = 0.08;
-			var normal = new THREE.Vector3();
-			var relativeVelocity = new THREE.Vector3();
+      var count = 0;
+      var radius = 0.08;
+      var normal = new THREE.Vector3();
+      var relativeVelocity = new THREE.Vector3();
 
+      var screenGeo;
+      var screenMat;
+      var screenMesh;
+      var gameInstance;
 
-      // unity canvas geo
-      var geo = new THREE.PlaneGeometry( 2, 1, 1 );
-        var mat = new THREE.MeshBasicMaterial( {side: THREE.SingleSide} );
-        var plane = new THREE.Mesh( geo, mat );
-        plane.position.z = -2.5;
-        plane.position.y = 1.2;
-        
+      init();
+      setupUnity();
+      animate();
 
-      function UnityProgress(gameInstance, progress) {
-        if (!gameInstance.Module)
-          return;
-        if (!gameInstance.logo) {
-          gameInstance.logo = document.createElement("div");
-          gameInstance.logo.className = "logo " + gameInstance.Module.splashScreenStyle;
-          gameInstance.container.appendChild(gameInstance.logo);
+      function setupUnity() {
+        function UnityProgress(gameInstance, progress) {
+          if (!gameInstance.Module)
+            return;
+
+            if (!gameInstance.logo) {
+              gameInstance.logo = document.createElement("div");
+              gameInstance.logo.className = "logo " + gameInstance.Module.splashScreenStyle;
+              gameInstance.container.appendChild(gameInstance.logo);
+            }
+
+            if (!gameInstance.progress) {    
+              gameInstance.progress = document.createElement("div");
+              gameInstance.progress.className = "progress " + gameInstance.Module.splashScreenStyle;
+              gameInstance.progress.empty = document.createElement("div");
+              gameInstance.progress.empty.className = "empty";
+              gameInstance.progress.appendChild(gameInstance.progress.empty);
+              gameInstance.progress.full = document.createElement("div");
+              gameInstance.progress.full.className = "full";
+              gameInstance.progress.appendChild(gameInstance.progress.full);
+              gameInstance.container.appendChild(gameInstance.progress);
+            }
+            gameInstance.progress.full.style.width = (100 * progress) + "%";
+            gameInstance.progress.empty.style.width = (100 * (1 - progress)) + "%";
+
+            if (!screenMat.map) {
+              // grab the unity canvas instance and pop it into three.
+              screenMat.map = new THREE.CanvasTexture( gameInstance.Module.canvas );
+            }
+
+            if (gameInstance.container) {
+              gameInstance.container.style.opacity = 0;
+            }
+
+            if (progress == 1) {
+              gameInstance.logo.style.display = gameInstance.progress.style.display = "none";
+            }
         }
-        if (!gameInstance.progress) {    
-          gameInstance.progress = document.createElement("div");
-          gameInstance.progress.className = "progress " + gameInstance.Module.splashScreenStyle;
-          gameInstance.progress.empty = document.createElement("div");
-          gameInstance.progress.empty.className = "empty";
-          gameInstance.progress.appendChild(gameInstance.progress.empty);
-          gameInstance.progress.full = document.createElement("div");
-          gameInstance.progress.full.className = "full";
-          gameInstance.progress.appendChild(gameInstance.progress.full);
-          gameInstance.container.appendChild(gameInstance.progress);
-        }
-        gameInstance.progress.full.style.width = (100 * progress) + "%";
-        gameInstance.progress.empty.style.width = (100 * (1 - progress)) + "%";
-        if (progress == 1)
-          console.log("we're loaded");
-					console.log(mat);
-					var container = document.querySelector('.webgl-content');
-					container.style.opacity = 0;
 
-          mat.map =  new THREE.CanvasTexture( gameInstance.Module.canvas );
-          console.log(gameInstance.Module.canvas);
-          setInterval(function () {
-            mat.map.needsUpdate = true;
-          }, 10);
+        //
 
-          gameInstance.logo.style.display = gameInstance.progress.style.display = "none";
+        UnityLoader.SystemInfo.mobile = false;
+        gameInstance = UnityLoader.instantiate("gameContainer", "Build/Build.json", {
+          Module: {
+            // `preserveDrawingBuffer` is needed for content to be used as texture in THREE.
+            webglContextAttributes: {
+              preserveDrawingBuffer: true
+            }
+          },
+          onProgress: UnityProgress
+        });
       }
-			UnityLoader.SystemInfo.mobile = false;
-      var gameInstance = UnityLoader.instantiate("gameContainer", "Build/Build.json", {
-        Module: {
-          // `preserveDrawingBuffer` is needed for WebVR content to be mirrored to the `<canvas>`.
-          webglContextAttributes: {
-            preserveDrawingBuffer: true
+
+      function init() {
+
+        container = document.createElement( 'div' );
+        document.body.appendChild( container );
+
+        var info = document.createElement( 'div' );
+        info.style.position = 'absolute';
+        info.style.top = '10px';
+        info.style.width = '100%';
+        info.style.textAlign = 'center';
+        info.innerHTML = 'Playroom';
+        container.appendChild( info );
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color( 0x505050 );
+
+        camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 10 );
+
+        room = new THREE.LineSegments(
+          new THREE.BoxLineGeometry( 6, 6, 6, 10, 10, 10 ),
+          new THREE.LineBasicMaterial( { color: 0x808080 } )
+        );
+        room.geometry.translate( 0, 3, 0 );
+        scene.add( room );
+
+        var light = new THREE.HemisphereLight( 0xffffff, 0x444444 );
+        light.position.set( 1, 1, 1 );
+        scene.add( light );
+
+        var geometry = new THREE.IcosahedronBufferGeometry( radius, 2 );
+
+        for ( var i = 0; i < 200; i ++ ) {
+
+          var object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) );
+
+          object.position.x = Math.random() * 4 - 2;
+          object.position.y = Math.random() * 4;
+          object.position.z = Math.random() * 4 - 2;
+
+          object.userData.velocity = new THREE.Vector3();
+          object.userData.velocity.x = Math.random() * 0.01 - 0.005;
+          object.userData.velocity.y = Math.random() * 0.01 - 0.005;
+          object.userData.velocity.z = Math.random() * 0.01 - 0.005;
+
+          room.add( object );
+
+        }
+
+        // unity canvas mesh to use as screen
+        screenGeo = new THREE.PlaneGeometry( 3, 2, 1 );
+        screenMat = new THREE.MeshBasicMaterial( {side: THREE.SingleSide} );
+        screenMesh = new THREE.Mesh( screenGeo, screenMat );
+        screenMesh.position.z = -2.5;
+        screenMesh.position.y = 1.5;
+        scene.add( screenMesh );
+
+        //
+
+        renderer = new THREE.WebGLRenderer( { antialias: true } );
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.vr.enabled = true;
+        container.appendChild( renderer.domElement );
+
+        //
+
+        document.body.appendChild( WEBVR.createButton( renderer ) );
+
+        // controllers
+
+        function onSelectStart() {
+
+          this.userData.isSelecting = true;
+
+        }
+
+        function onSelectEnd() {
+
+          this.userData.isSelecting = false;
+
+        }
+
+        controller1 = renderer.vr.getController( 0 );
+        controller1.addEventListener( 'selectstart', onSelectStart );
+        controller1.addEventListener( 'selectend', onSelectEnd );
+        scene.add( controller1 );
+
+        controller2 = renderer.vr.getController( 1 );
+        controller2.addEventListener( 'selectstart', onSelectStart );
+        controller2.addEventListener( 'selectend', onSelectEnd );
+        scene.add( controller2 );
+
+        // helpers
+
+        var geometry = new THREE.BufferGeometry();
+        geometry.addAttribute( 'position', new THREE.Float32BufferAttribute( [ 0, 0, 0, 0, 0, - 1 ], 3 ) );
+        geometry.addAttribute( 'color', new THREE.Float32BufferAttribute( [ 0.5, 0.5, 0.5, 0, 0, 0 ], 3 ) );
+
+        var material = new THREE.LineBasicMaterial( { vertexColors: true, blending: THREE.AdditiveBlending } );
+
+        controller1.add( new THREE.Line( geometry, material ) );
+        controller2.add( new THREE.Line( geometry, material ) );
+
+        //
+
+        window.addEventListener( 'resize', onWindowResize, false );
+
+      }
+
+      function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+      }
+
+      function handleController( controller ) {
+
+        if ( controller.userData.isSelecting ) {
+
+          var object = room.children[ count ++ ];
+
+          object.position.copy( controller.position );
+          object.userData.velocity.x = ( Math.random() - 0.5 ) * 0.02;
+          object.userData.velocity.y = ( Math.random() - 0.5 ) * 0.02;
+          object.userData.velocity.z = ( Math.random() * 0.02 - 0.1 );
+          object.userData.velocity.applyQuaternion( controller.quaternion );
+
+          if ( count === room.children.length ) count = 0;
+
+        }
+
+      }
+
+      //
+
+      function animate() {
+
+        renderer.setAnimationLoop( render );
+
+      }
+
+      function render() {
+
+        handleController( controller1 );
+        handleController( controller2 );
+
+        //
+
+        var range = 3 - radius;
+
+        for ( var i = 0; i < room.children.length; i ++ ) {
+
+          var object = room.children[ i ];
+
+          object.position.add( object.userData.velocity );
+
+          // keep objects inside room
+
+          if ( object.position.x < - range || object.position.x > range ) {
+
+            object.position.x = THREE.Math.clamp( object.position.x, - range, range );
+            object.userData.velocity.x = - object.userData.velocity.x;
+
           }
-        },
-        onProgress: UnityProgress
-      });
 
-			init();
-			animate();
+          if ( object.position.y < radius || object.position.y > 6 ) {
 
-			function init() {
+            object.position.y = Math.max( object.position.y, radius );
 
-				container = document.createElement( 'div' );
-				document.body.appendChild( container );
+            object.userData.velocity.x *= 0.98;
+            object.userData.velocity.y = - object.userData.velocity.y * 0.8;
+            object.userData.velocity.z *= 0.98;
 
-				var info = document.createElement( 'div' );
-				info.style.position = 'absolute';
-				info.style.top = '10px';
-				info.style.width = '100%';
-				info.style.textAlign = 'center';
-				info.innerHTML = '<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webvr - ball shooter';
-				container.appendChild( info );
+          }
 
-				scene = new THREE.Scene();
-				scene.background = new THREE.Color( 0x505050 );
+          if ( object.position.z < - range || object.position.z > range ) {
 
-				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 10 );
+            object.position.z = THREE.Math.clamp( object.position.z, - range, range );
+            object.userData.velocity.z = - object.userData.velocity.z;
 
-				room = new THREE.LineSegments(
-					new THREE.BoxLineGeometry( 6, 6, 6, 10, 10, 10 ),
-					new THREE.LineBasicMaterial( { color: 0x808080 } )
-				);
-				room.geometry.translate( 0, 3, 0 );
-				scene.add( room );
+          }
 
-				var light = new THREE.HemisphereLight( 0xffffff, 0x444444 );
-				light.position.set( 1, 1, 1 );
-				scene.add( light );
+          for ( var j = i + 1; j < room.children.length; j ++ ) {
 
-				var geometry = new THREE.IcosahedronBufferGeometry( radius, 2 );
+            var object2 = room.children[ j ];
 
-				for ( var i = 0; i < 200; i ++ ) {
+            normal.copy( object.position ).sub( object2.position );
 
-					var object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) );
+            var distance = normal.length();
 
-					object.position.x = Math.random() * 4 - 2;
-					object.position.y = Math.random() * 4;
-					object.position.z = Math.random() * 4 - 2;
+            if ( distance < 2 * radius ) {
 
-					object.userData.velocity = new THREE.Vector3();
-					object.userData.velocity.x = Math.random() * 0.01 - 0.005;
-					object.userData.velocity.y = Math.random() * 0.01 - 0.005;
-					object.userData.velocity.z = Math.random() * 0.01 - 0.005;
+              normal.multiplyScalar( 0.5 * distance - radius );
 
-					room.add( object );
+              object.position.sub( normal );
+              object2.position.add( normal );
 
-				}
+              normal.normalize();
 
-        // canvas draw
-        scene.add( plane );
+              relativeVelocity.copy( object.userData.velocity ).sub( object2.userData.velocity );
 
-				//
+              normal = normal.multiplyScalar( relativeVelocity.dot( normal ) );
 
-				renderer = new THREE.WebGLRenderer( { antialias: true } );
-				renderer.setPixelRatio( window.devicePixelRatio );
-				renderer.setSize( window.innerWidth, window.innerHeight );
-				renderer.vr.enabled = true;
-				container.appendChild( renderer.domElement );
+              object.userData.velocity.sub( normal );
+              object2.userData.velocity.add( normal );
 
-				//
+            }
 
-				document.body.appendChild( WEBVR.createButton( renderer ) );
+          }
 
-				// controllers
+          object.userData.velocity.y -= 0.00098;
 
-				function onSelectStart() {
+        }
 
-					this.userData.isSelecting = true;
+        // Update Unity screen texture
+        if (screenMat.map) {
+          screenMat.map.needsUpdate = true;
+        }
 
-				}
+        renderer.render( scene, camera );
 
-				function onSelectEnd() {
-
-					this.userData.isSelecting = false;
-
-				}
-
-				controller1 = renderer.vr.getController( 0 );
-				controller1.addEventListener( 'selectstart', onSelectStart );
-				controller1.addEventListener( 'selectend', onSelectEnd );
-				scene.add( controller1 );
-
-				controller2 = renderer.vr.getController( 1 );
-				controller2.addEventListener( 'selectstart', onSelectStart );
-				controller2.addEventListener( 'selectend', onSelectEnd );
-				scene.add( controller2 );
-
-				// helpers
-
-				var geometry = new THREE.BufferGeometry();
-				geometry.addAttribute( 'position', new THREE.Float32BufferAttribute( [ 0, 0, 0, 0, 0, - 1 ], 3 ) );
-				geometry.addAttribute( 'color', new THREE.Float32BufferAttribute( [ 0.5, 0.5, 0.5, 0, 0, 0 ], 3 ) );
-
-				var material = new THREE.LineBasicMaterial( { vertexColors: true, blending: THREE.AdditiveBlending } );
-
-				controller1.add( new THREE.Line( geometry, material ) );
-				controller2.add( new THREE.Line( geometry, material ) );
-
-				//
-
-				window.addEventListener( 'resize', onWindowResize, false );
-
-			}
-
-			function onWindowResize() {
-
-				camera.aspect = window.innerWidth / window.innerHeight;
-				camera.updateProjectionMatrix();
-
-				renderer.setSize( window.innerWidth, window.innerHeight );
-
-			}
-
-			function handleController( controller ) {
-
-				if ( controller.userData.isSelecting ) {
-
-					var object = room.children[ count ++ ];
-
-					object.position.copy( controller.position );
-					object.userData.velocity.x = ( Math.random() - 0.5 ) * 0.02;
-					object.userData.velocity.y = ( Math.random() - 0.5 ) * 0.02;
-					object.userData.velocity.z = ( Math.random() * 0.02 - 0.1 );
-					object.userData.velocity.applyQuaternion( controller.quaternion );
-
-					if ( count === room.children.length ) count = 0;
-
-				}
-
-			}
-
-			//
-
-			function animate() {
-
-				renderer.setAnimationLoop( render );
-
-			}
-
-			function render() {
-
-				handleController( controller1 );
-				handleController( controller2 );
-
-				//
-
-				var range = 3 - radius;
-
-				for ( var i = 0; i < room.children.length; i ++ ) {
-
-					var object = room.children[ i ];
-
-					object.position.add( object.userData.velocity );
-
-					// keep objects inside room
-
-					if ( object.position.x < - range || object.position.x > range ) {
-
-						object.position.x = THREE.Math.clamp( object.position.x, - range, range );
-						object.userData.velocity.x = - object.userData.velocity.x;
-
-					}
-
-					if ( object.position.y < radius || object.position.y > 6 ) {
-
-						object.position.y = Math.max( object.position.y, radius );
-
-						object.userData.velocity.x *= 0.98;
-						object.userData.velocity.y = - object.userData.velocity.y * 0.8;
-						object.userData.velocity.z *= 0.98;
-
-					}
-
-					if ( object.position.z < - range || object.position.z > range ) {
-
-						object.position.z = THREE.Math.clamp( object.position.z, - range, range );
-						object.userData.velocity.z = - object.userData.velocity.z;
-
-					}
-
-					for ( var j = i + 1; j < room.children.length; j ++ ) {
-
-						var object2 = room.children[ j ];
-
-						normal.copy( object.position ).sub( object2.position );
-
-						var distance = normal.length();
-
-						if ( distance < 2 * radius ) {
-
-							normal.multiplyScalar( 0.5 * distance - radius );
-
-							object.position.sub( normal );
-							object2.position.add( normal );
-
-							normal.normalize();
-
-							relativeVelocity.copy( object.userData.velocity ).sub( object2.userData.velocity );
-
-							normal = normal.multiplyScalar( relativeVelocity.dot( normal ) );
-
-							object.userData.velocity.sub( normal );
-							object2.userData.velocity.add( normal );
-
-						}
-
-					}
-
-					object.userData.velocity.y -= 0.00098;
-
-				}
-
-				renderer.render( scene, camera );
-
-			}
+      }
     
     </script>
   </body>
